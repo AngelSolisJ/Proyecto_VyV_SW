@@ -22,7 +22,7 @@ class BaseDatos:
             return False, "Error ID duplicado."
         
         try:
-            self.cursor.excecute("INSERT INTO productos VALUES (?, ?, ?, ?, ?)",
+            self.cursor.execute("INSERT INTO producto VALUES (?, ?, ?, ?, ?)",
                             (id_p, nombre, categoria, cantidad, precio))
             self.conn.commit()
             return True, "Producto registrado con éxito."
@@ -49,10 +49,14 @@ class BaseDatos:
 
     def eliminar_producto(self, id_p):
         self.cursor.execute("DELETE FROM producto WHERE id=?", (id_p,))
-        if self.conn.commit():
+        filas_afectadas = self.cursor.rowcount
+        self.conn.commit()
+        if filas_afectadas > 0:
             return True, "Producto eliminado con éxito."
-        return False, "Error: No se encontró el producto para eliminar"
+        else:
+         return False, "Error: No se encontró el producto para eliminar"
     
     def __del__(self):
         self.conn.close()
+
 

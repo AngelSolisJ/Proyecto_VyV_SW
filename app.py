@@ -51,9 +51,7 @@ class TiendaAppGUI:
                     row=row_num, column=1, padx=5, pady=5, sticky='ew'
                 )
 
-        # ----------------------------------------------------------------------
-        # 2. Marco de Botones CRUD (Button Frame)
-        # ----------------------------------------------------------------------
+    
         button_frame = ttk.Frame(master, padding="10 10 10 10")
         button_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
         button_frame.columnconfigure((0, 1, 2, 3), weight=1)
@@ -87,7 +85,6 @@ class TiendaAppGUI:
         self.consultar() 
         
 
-    
     def registrar(self):
         id_p = self.id_var.get()
         nombre = self.nombre_var.get()
