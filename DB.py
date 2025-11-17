@@ -9,7 +9,7 @@ class BaseDatos:
     def crear_tabla(self):
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS producto (
-                id TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT not NULL,
                 categoria TEXT,   
                 cantidad INTEGER,
@@ -18,12 +18,25 @@ class BaseDatos:
         ''')
     
     def registrar_producto(self, id_p, nombre, categoria, cantidad, precio):
-        if self.cursor.execute("SELECT id FROM producto WHERE  id=?", (id_p,)).fetchone():
-            return False, "Error ID duplicado."
-        
         try:
-            self.cursor.execute("INSERT INTO producto VALUES (?, ?, ?, ?, ?)",
-                            (id_p, nombre, categoria, cantidad, precio))
+            if not id_p or str(id_p).strip() == "":
+                self.cursor.execute("INSERT INTO producto (nombre, categoria, cantidad, precio) VALUES (?, ?, ?, ?)",
+                                    (nombre, categoria, cantidad, precio))
+                self.conn.commit()
+                nuevo_id = self.cursor.lastrowid
+                return True, f"Producto registrado con éxito con ID {nuevo_id}."
+            
+            try:
+                id_int = int(id_p)
+            except ValueError:
+                return False, "Error: El ID debe ser un número entero."
+            
+            existing = self.cursor.execute("SELECT id FROM producto WHERE id=?", (id_int,)).fetchone()
+            if existing:
+                return self.actualizar_producto(id_int, nombre, categoria, cantidad, precio)
+
+            self.cursor.execute("INSERT INTO producto (id, nombre, categoria, cantidad, precio) VALUES (?, ?, ?, ?, ?)",
+                                (id_int, nombre, categoria, cantidad, precio))
             self.conn.commit()
             return True, "Producto registrado con éxito."
         except sqlite3.Error as e:
@@ -35,9 +48,14 @@ class BaseDatos:
 
     def actualizar_producto(self, id_p, nombre, categoria, cantidad, precio):
         try:
+            try:
+                id_int = int(id_p)
+            except ValueError:
+                return False, "Error: El ID debe ser un número entero."
+            
             self.cursor.execute(
                 "UPDATE producto SET nombre=?, categoria=?, cantidad=?, precio=? WHERE id=?",
-                (nombre, categoria, cantidad, precio, id_p)
+                (nombre, categoria, cantidad, precio, id_int)
             )
             self.conn.commit()
             if self.cursor.rowcount == 0:
@@ -48,15 +66,23 @@ class BaseDatos:
 
 
     def eliminar_producto(self, id_p):
-        self.cursor.execute("DELETE FROM producto WHERE id=?", (id_p,))
+        try:
+            id_int = int(id_p)
+        except ValueError:
+            return False, "Error: El ID debe ser un número entero."
+        
+        self.cursor.execute("DELETE FROM producto WHERE id=?", (id_int,))
         filas_afectadas = self.cursor.rowcount
         self.conn.commit()
         if filas_afectadas > 0:
             return True, "Producto eliminado con éxito."
         else:
-         return False, "Error: No se encontró el producto para eliminar"
+            return False, "Error: No se encontró el producto para eliminar"
     
     def __del__(self):
-        self.conn.close()
+        try:
+            self.conn.close()
+        except Exception:
+            pass
 
 
