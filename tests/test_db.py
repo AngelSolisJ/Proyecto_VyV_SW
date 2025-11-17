@@ -120,3 +120,48 @@ def test_id_none_autoincrement():
     productos = db.obtener_productos()
     assert len(productos) == 1
     assert productos[0][0] == '1'
+
+
+def test_id_con_ceros_delante_normaliza():
+    """Test that IDs with leading zeros are normalized (02 -> 2)"""
+    db = BaseDatos(":memory:")
+    exito, _ = db.registrar_producto("02", "Prod1", "Alimentos", 1, 1.0)
+    assert exito
+    
+    productos = db.obtener_productos()
+    assert len(productos) == 1
+    assert productos[0][0] == '2'
+
+
+def test_ids_duplicados_con_ceros_actualiza():
+    """Test that 2, 02, 0002 are treated as the same ID"""
+    db = BaseDatos(":memory:")
+    
+    # Register with ID "2"
+    exito1, _ = db.registrar_producto("2", "Prod1", "Alimentos", 1, 1.0)
+    assert exito1
+    
+    # Try to register with "02" - should update, not create new
+    exito2, msg2 = db.registrar_producto("02", "Prod2", "Bebidas", 2, 2.0)
+    assert exito2
+    
+    # Try to register with "0002" - should update again
+    exito3, msg3 = db.registrar_producto("0002", "Prod3", "Limpieza", 3, 3.0)
+    assert exito3
+    
+    # Should only have 1 product with the updated info
+    productos = db.obtener_productos()
+    assert len(productos) == 1
+    assert productos[0][0] == '2'
+    assert productos[0][1] == 'Prod3'
+    assert productos[0][3] == 3
+
+
+def test_id_alfanumerico_no_normaliza():
+    """Test that alphanumeric IDs are not normalized"""
+    db = BaseDatos(":memory:")
+    exito, _ = db.registrar_producto("ABC02", "ProdAlfa", "Alimentos", 1, 1.0)
+    assert exito
+    
+    productos = db.obtener_productos()
+    assert productos[0][0] == 'ABC02'  # Should remain unchanged
