@@ -13,16 +13,16 @@ def test_registrar_con_id_en_blanco_autoincrement():
     assert exito
     productos = db.obtener_productos()
     assert len(productos) == 1
-    # id should be '1' for first auto-increment
-    assert productos[0][0] == '1'
+    # id should be 1 for first auto-increment
+    assert productos[0][0] == 1
 
 
 def test_registrar_con_id_personalizado_nuevo():
     db = BaseDatos(":memory:")
-    exito, mensaje = db.registrar_producto("ABC123", "Producto B", "Bebidas", 3, 2.0)
+    exito, mensaje = db.registrar_producto("100", "Producto B", "Bebidas", 3, 2.0)
     assert exito
     productos = db.obtener_productos()
-    assert any(p[0] == 'ABC123' for p in productos)
+    assert any(p[0] == 100 for p in productos)
 
 
 def test_registrar_con_id_existente_actualiza():
@@ -34,7 +34,7 @@ def test_registrar_con_id_existente_actualiza():
     exito_upd, msg = db.registrar_producto("5", "Prod1-mod", "Limpieza", 10, 2.0)
     assert exito_upd
     productos = db.obtener_productos()
-    p5 = [p for p in productos if p[0] == '5'][0]
+    p5 = [p for p in productos if p[0] == 5][0]
     assert p5[1] == "Prod1-mod"
     assert p5[3] == 10
     assert abs(p5[4] - 2.0) < 1e-9
@@ -48,8 +48,8 @@ def test_autoincrement_secuencial():
     db.registrar_producto("", "Prod3", "Limpieza", 3, 3.0)
     
     productos = db.obtener_productos()
-    ids = sorted([p[0] for p in productos if p[0].isdigit()], key=int)
-    assert ids == ['1', '2', '3']
+    ids = [p[0] for p in productos]
+    assert ids == [1, 2, 3]
 
 
 def test_autoincrement_despues_de_id_personalizado():
@@ -60,26 +60,26 @@ def test_autoincrement_despues_de_id_personalizado():
     
     productos = db.obtener_productos()
     auto_id = [p for p in productos if p[1] == "ProdAuto"][0][0]
-    assert auto_id == '101'
+    assert auto_id == 101
 
 
 def test_eliminar_producto_existente():
     """Test deleting an existing product"""
     db = BaseDatos(":memory:")
-    db.registrar_producto("DEL1", "ToDelete", "Alimentos", 5, 5.0)
+    db.registrar_producto("50", "ToDelete", "Alimentos", 5, 5.0)
     
-    exito, msg = db.eliminar_producto("DEL1")
+    exito, msg = db.eliminar_producto("50")
     assert exito
     assert "eliminado con éxito" in msg
     
     productos = db.obtener_productos()
-    assert not any(p[0] == 'DEL1' for p in productos)
+    assert not any(p[0] == 50 for p in productos)
 
 
 def test_eliminar_producto_inexistente():
     """Test attempting to delete non-existent product"""
     db = BaseDatos(":memory:")
-    exito, msg = db.eliminar_producto("NOEXISTE")
+    exito, msg = db.eliminar_producto("999")
     assert not exito
     assert "no se encontró" in msg.lower()
 
@@ -87,7 +87,7 @@ def test_eliminar_producto_inexistente():
 def test_actualizar_producto_inexistente():
     """Test updating a non-existent product fails"""
     db = BaseDatos(":memory:")
-    exito, msg = db.actualizar_producto("NOEXISTE", "Nombre", "Cat", 1, 1.0)
+    exito, msg = db.actualizar_producto("999", "Nombre", "Cat", 1, 1.0)
     assert not exito
     assert "no encontrado" in msg.lower()
 
@@ -95,14 +95,14 @@ def test_actualizar_producto_inexistente():
 def test_registrar_multiples_productos_diferentes():
     """Test registering multiple products with different IDs"""
     db = BaseDatos(":memory:")
-    db.registrar_producto("A1", "ProdA", "Alimentos", 10, 5.0)
-    db.registrar_producto("B2", "ProdB", "Bebidas", 20, 10.0)
+    db.registrar_producto("10", "ProdA", "Alimentos", 10, 5.0)
+    db.registrar_producto("20", "ProdB", "Bebidas", 20, 10.0)
     db.registrar_producto("", "ProdC", "Limpieza", 30, 15.0)
     
     productos = db.obtener_productos()
     assert len(productos) == 3
-    assert any(p[0] == 'A1' and p[1] == 'ProdA' for p in productos)
-    assert any(p[0] == 'B2' and p[1] == 'ProdB' for p in productos)
+    assert any(p[0] == 10 and p[1] == 'ProdA' for p in productos)
+    assert any(p[0] == 20 and p[1] == 'ProdB' for p in productos)
 
 
 def test_obtener_productos_vacio():
@@ -119,7 +119,7 @@ def test_id_none_autoincrement():
     assert exito
     productos = db.obtener_productos()
     assert len(productos) == 1
-    assert productos[0][0] == '1'
+    assert productos[0][0] == 1
 
 
 def test_id_con_ceros_delante_normaliza():
@@ -130,7 +130,7 @@ def test_id_con_ceros_delante_normaliza():
     
     productos = db.obtener_productos()
     assert len(productos) == 1
-    assert productos[0][0] == '2'
+    assert productos[0][0] == 2
 
 
 def test_ids_duplicados_con_ceros_actualiza():
@@ -152,16 +152,14 @@ def test_ids_duplicados_con_ceros_actualiza():
     # Should only have 1 product with the updated info
     productos = db.obtener_productos()
     assert len(productos) == 1
-    assert productos[0][0] == '2'
+    assert productos[0][0] == 2
     assert productos[0][1] == 'Prod3'
     assert productos[0][3] == 3
 
 
-def test_id_alfanumerico_no_normaliza():
-    """Test that alphanumeric IDs are not normalized"""
+def test_id_alfanumerico_rechaza():
+    """Test that alphanumeric IDs are rejected"""
     db = BaseDatos(":memory:")
-    exito, _ = db.registrar_producto("ABC02", "ProdAlfa", "Alimentos", 1, 1.0)
-    assert exito
-    
-    productos = db.obtener_productos()
-    assert productos[0][0] == 'ABC02'  # Should remain unchanged
+    exito, msg = db.registrar_producto("ABC02", "ProdAlfa", "Alimentos", 1, 1.0)
+    assert not exito
+    assert "entero" in msg.lower()
