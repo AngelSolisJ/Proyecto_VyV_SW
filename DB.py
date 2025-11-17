@@ -6,6 +6,16 @@ class BaseDatos:
         self.cursor = self.conn.cursor()
         self.crear_tabla()
     
+    def _normalizar_id(self, id_p):
+        """Normalize ID by removing leading zeros from numeric IDs"""
+        if not id_p or str(id_p).strip() == "":
+            return ""
+        id_str = str(id_p).strip()
+        # If it's purely numeric, convert to int and back to remove leading zeros
+        if id_str.isdigit():
+            return str(int(id_str))
+        return id_str
+    
     def crear_tabla(self):
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS producto (
@@ -19,8 +29,11 @@ class BaseDatos:
     
     def registrar_producto(self, id_p, nombre, categoria, cantidad, precio):
         try:
+            # Normalize the ID
+            id_normalizado = self._normalizar_id(id_p)
+            
             # If id is blank or None, generate next numeric id
-            if not id_p or str(id_p).strip() == "":
+            if not id_normalizado:
                 rows = self.cursor.execute("SELECT id FROM producto").fetchall()
                 max_id = 0
                 for (rid,) in rows:
@@ -37,13 +50,13 @@ class BaseDatos:
                 return True, f"Producto registrado con éxito con ID {next_id}."
 
             # If id provided and exists -> update
-            existing = self.cursor.execute("SELECT id FROM producto WHERE id=?", (id_p,)).fetchone()
+            existing = self.cursor.execute("SELECT id FROM producto WHERE id=?", (id_normalizado,)).fetchone()
             if existing:
-                return self.actualizar_producto(id_p, nombre, categoria, cantidad, precio)
+                return self.actualizar_producto(id_normalizado, nombre, categoria, cantidad, precio)
 
             # Otherwise insert with provided id
             self.cursor.execute("INSERT INTO producto VALUES (?, ?, ?, ?, ?)",
-                                (id_p, nombre, categoria, cantidad, precio))
+                                (id_normalizado, nombre, categoria, cantidad, precio))
             self.conn.commit()
             return True, "Producto registrado con éxito."
         except sqlite3.Error as e:
