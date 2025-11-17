@@ -18,12 +18,32 @@ class BaseDatos:
         ''')
     
     def registrar_producto(self, id_p, nombre, categoria, cantidad, precio):
-        if self.cursor.execute("SELECT id FROM producto WHERE  id=?", (id_p,)).fetchone():
-            return False, "Error ID duplicado."
-        
         try:
+            # If id is blank or None, generate next numeric id
+            if not id_p or str(id_p).strip() == "":
+                rows = self.cursor.execute("SELECT id FROM producto").fetchall()
+                max_id = 0
+                for (rid,) in rows:
+                    try:
+                        v = int(rid)
+                        if v > max_id:
+                            max_id = v
+                    except Exception:
+                        continue
+                next_id = str(max_id + 1)
+                self.cursor.execute("INSERT INTO producto VALUES (?, ?, ?, ?, ?)",
+                                    (next_id, nombre, categoria, cantidad, precio))
+                self.conn.commit()
+                return True, f"Producto registrado con éxito con ID {next_id}."
+
+            # If id provided and exists -> update
+            existing = self.cursor.execute("SELECT id FROM producto WHERE id=?", (id_p,)).fetchone()
+            if existing:
+                return self.actualizar_producto(id_p, nombre, categoria, cantidad, precio)
+
+            # Otherwise insert with provided id
             self.cursor.execute("INSERT INTO producto VALUES (?, ?, ?, ?, ?)",
-                            (id_p, nombre, categoria, cantidad, precio))
+                                (id_p, nombre, categoria, cantidad, precio))
             self.conn.commit()
             return True, "Producto registrado con éxito."
         except sqlite3.Error as e:
@@ -54,9 +74,12 @@ class BaseDatos:
         if filas_afectadas > 0:
             return True, "Producto eliminado con éxito."
         else:
-         return False, "Error: No se encontró el producto para eliminar"
+            return False, "Error: No se encontró el producto para eliminar"
     
     def __del__(self):
-        self.conn.close()
+        try:
+            self.conn.close()
+        except Exception:
+            pass
 
 

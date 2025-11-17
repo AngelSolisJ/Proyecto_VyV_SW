@@ -1,0 +1,22 @@
+# Ignore local SQLite DB
+inventario.db
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# pytest cache
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+
+# IDEs
+.vscode/
+
+# Environment files
+.env
+
+# OS files
+.DS_Store
