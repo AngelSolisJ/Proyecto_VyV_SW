@@ -19,7 +19,6 @@ class BaseDatos:
     
     def registrar_producto(self, id_p, nombre, categoria, cantidad, precio):
         try:
-            # If id is blank or None, let SQLite auto-increment
             if not id_p or str(id_p).strip() == "":
                 self.cursor.execute("INSERT INTO producto (nombre, categoria, cantidad, precio) VALUES (?, ?, ?, ?)",
                                     (nombre, categoria, cantidad, precio))
@@ -27,18 +26,15 @@ class BaseDatos:
                 nuevo_id = self.cursor.lastrowid
                 return True, f"Producto registrado con éxito con ID {nuevo_id}."
             
-            # Convert id to integer
             try:
                 id_int = int(id_p)
             except ValueError:
                 return False, "Error: El ID debe ser un número entero."
             
-            # If id provided and exists -> update
             existing = self.cursor.execute("SELECT id FROM producto WHERE id=?", (id_int,)).fetchone()
             if existing:
                 return self.actualizar_producto(id_int, nombre, categoria, cantidad, precio)
 
-            # Otherwise insert with provided id
             self.cursor.execute("INSERT INTO producto (id, nombre, categoria, cantidad, precio) VALUES (?, ?, ?, ?, ?)",
                                 (id_int, nombre, categoria, cantidad, precio))
             self.conn.commit()
@@ -52,7 +48,6 @@ class BaseDatos:
 
     def actualizar_producto(self, id_p, nombre, categoria, cantidad, precio):
         try:
-            # Convert id to integer
             try:
                 id_int = int(id_p)
             except ValueError:

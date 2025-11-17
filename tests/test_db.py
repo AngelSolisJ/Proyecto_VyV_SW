@@ -13,7 +13,6 @@ def test_registrar_con_id_en_blanco_autoincrement():
     assert exito
     productos = db.obtener_productos()
     assert len(productos) == 1
-    # id should be 1 for first auto-increment
     assert productos[0][0] == 1
 
 
@@ -30,7 +29,6 @@ def test_registrar_con_id_existente_actualiza():
     exito, _ = db.registrar_producto("5", "Prod1", "Limpieza", 1, 1.0)
     assert exito
 
-    # Register with same id should perform update
     exito_upd, msg = db.registrar_producto("5", "Prod1-mod", "Limpieza", 10, 2.0)
     assert exito_upd
     productos = db.obtener_productos()
@@ -137,19 +135,15 @@ def test_ids_duplicados_con_ceros_actualiza():
     """Test that 2, 02, 0002 are treated as the same ID"""
     db = BaseDatos(":memory:")
     
-    # Register with ID "2"
     exito1, _ = db.registrar_producto("2", "Prod1", "Alimentos", 1, 1.0)
     assert exito1
     
-    # Try to register with "02" - should update, not create new
     exito2, msg2 = db.registrar_producto("02", "Prod2", "Bebidas", 2, 2.0)
     assert exito2
     
-    # Try to register with "0002" - should update again
     exito3, msg3 = db.registrar_producto("0002", "Prod3", "Limpieza", 3, 3.0)
     assert exito3
     
-    # Should only have 1 product with the updated info
     productos = db.obtener_productos()
     assert len(productos) == 1
     assert productos[0][0] == 2

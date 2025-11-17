@@ -1,9 +1,7 @@
-# app.py
 import tkinter as tk
 from tkinter import messagebox
-from tkinter import ttk  # Importar ttk para un look and feel moderno
+from tkinter import ttk
 
-# Importar lógica de negocio y persistencia
 from DB import BaseDatos 
 from Validacion_datos import validar_datos_entrada 
 
