@@ -8,9 +8,10 @@ from Validacion_datos import validar_datos_entrada
 class TiendaAppGUI:
     def __init__(self, master):
         self.master = master
-        master.title("TiendApp | Gestión de Inventario")
+        master.title("TiendApp | Gestión de Inventario (Normalizado)")
         master.configure(bg='#f0f0f0')
         
+        # Instancia de la base de datos (se crearán las 2 tablas automáticamente)
         self.db = BaseDatos()
 
         # --- Variables de control ---
@@ -20,10 +21,10 @@ class TiendaAppGUI:
         self.cantidad_var = tk.StringVar()
         self.precio_var = tk.StringVar()
 
-       
         master.columnconfigure(0, weight=1)
         master.rowconfigure(2, weight=1) 
 
+        # --- Panel de Entrada ---
         input_frame = ttk.Frame(master, padding="15 15 15 15")
         input_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
         input_frame.columnconfigure(1, weight=1) 
@@ -41,7 +42,11 @@ class TiendaAppGUI:
                 row=row_num, column=0, sticky='w', padx=5, pady=5
             )
             if label_text == "Categoría:":
-                ttk.Combobox(input_frame, textvariable=var, values=["Alimentos", "Bebidas", "Limpieza", "Otros"], state="readonly").grid(
+                # Nota: Aunque la DB usa IDs, el usuario sigue viendo Nombres.
+                # DB.py se encarga de la conversión interna.
+                ttk.Combobox(input_frame, textvariable=var, 
+                             values=["Alimentos", "Bebidas", "Limpieza", "Electrónica", "Otros"], 
+                             state="readonly").grid(
                     row=row_num, column=1, padx=5, pady=5, sticky='ew'
                 )
             else:
@@ -49,7 +54,7 @@ class TiendaAppGUI:
                     row=row_num, column=1, padx=5, pady=5, sticky='ew'
                 )
 
-    
+        # --- Panel de Botones ---
         button_frame = ttk.Frame(master, padding="10 10 10 10")
         button_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
         button_frame.columnconfigure((0, 1, 2, 3), weight=1)
@@ -59,12 +64,11 @@ class TiendaAppGUI:
         ttk.Button(button_frame, text="🗑️ Eliminar (ID)", command=self.eliminar).grid(row=0, column=2, padx=5, pady=5, sticky='ew')
         ttk.Button(button_frame, text="📋 Consultar Todo", command=self.consultar).grid(row=0, column=3, padx=5, pady=5, sticky='ew')
 
-
+        # --- Panel de Tabla (Treeview) ---
         table_frame = ttk.Frame(master, padding="10 10 10 10")
         table_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
-
 
         columnas = ("ID", "Nombre", "Categoría", "Cantidad", "Precio")
         self.lista_inventario = ttk.Treeview(table_frame, columns=columnas, show='headings')
@@ -74,7 +78,6 @@ class TiendaAppGUI:
             self.lista_inventario.column(col, anchor=tk.CENTER, width=100)
             
         self.lista_inventario.grid(row=0, column=0, sticky='nsew')
-        
 
         scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.lista_inventario.yview)
         self.lista_inventario.configure(yscrollcommand=scroll.set)
@@ -88,7 +91,7 @@ class TiendaAppGUI:
         nombre = self.nombre_var.get()
         cantidad = self.cantidad_var.get()
         precio = self.precio_var.get()
-        categoria = self.categoria_var.get()
+        categoria = self.categoria_var.get() # Obtenemos el texto (ej: "Alimentos")
 
         valido, mensaje = validar_datos_entrada(cantidad, precio, nombre)
 
@@ -96,6 +99,7 @@ class TiendaAppGUI:
             messagebox.showerror("Error de Validación", mensaje)
             return
         
+        # Enviamos el texto de la categoría, DB.py se encarga del resto
         exito, mensaje = self.db.registrar_producto(id_p, nombre, categoria, int(cantidad), float(precio))
 
         if exito:
@@ -106,10 +110,10 @@ class TiendaAppGUI:
             messagebox.showerror("Error de Registro", mensaje)
             
     def consultar(self):
-
         for item in self.lista_inventario.get_children():
             self.lista_inventario.delete(item)
             
+        # DB.py ahora hace un JOIN y nos devuelve los datos listos para mostrar
         productos = self.db.obtener_productos()
         
         for producto in productos:
@@ -142,7 +146,6 @@ class TiendaAppGUI:
             messagebox.showerror("Error de Actualización", mensaje)
 
     def eliminar(self):
- 
         id_p = self.id_var.get()
         if not id_p:
              messagebox.showerror("Error", "Debe ingresar el ID del producto a eliminar.")
