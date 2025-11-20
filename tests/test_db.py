@@ -9,16 +9,18 @@ from DB import BaseDatos
 
 def test_registrar_con_id_en_blanco_autoincrement():
     db = BaseDatos(":memory:")
-    exito, mensaje = db.registrar_producto("", "Producto A", "Alimentos", 2, 1.5)
+    exito, mensaje, nuevo_id = db.registrar_producto("", "Producto A", "Alimentos", 2, 1.5)
     assert exito
     productos = db.obtener_productos()
     assert len(productos) == 1
+    # auto id should be 1 in a fresh in-memory DB
     assert productos[0][0] == 1
+    assert nuevo_id == 1
 
 
 def test_registrar_con_id_personalizado_nuevo():
     db = BaseDatos(":memory:")
-    exito, mensaje = db.registrar_producto("100", "Producto B", "Bebidas", 3, 2.0)
+    exito, mensaje, nuevo_id = db.registrar_producto("100", "Producto B", "Bebidas", 3, 2.0)
     assert exito
     productos = db.obtener_productos()
     assert any(p[0] == 100 for p in productos)
@@ -26,10 +28,17 @@ def test_registrar_con_id_personalizado_nuevo():
 
 def test_registrar_con_id_existente_actualiza():
     db = BaseDatos(":memory:")
-    exito, _ = db.registrar_producto("5", "Prod1", "Limpieza", 1, 1.0)
+    # first insertion with ID 5 should succeed
+    exito, _, nid = db.registrar_producto("5", "Prod1", "Limpieza", 1, 1.0)
     assert exito
 
-    exito_upd, msg = db.registrar_producto("5", "Prod1-mod", "Limpieza", 10, 2.0)
+    # attempting to register again with same ID should be rejected (require usar actualizar)
+    exito_upd_attempt, msg_upd_attempt, nid2 = db.registrar_producto("5", "Prod1-mod", "Limpieza", 10, 2.0)
+    assert not exito_upd_attempt
+    assert "ya existe" in msg_upd_attempt.lower() or "actualizar" in msg_upd_attempt.lower()
+
+    # update explicitly using actualizar_producto
+    exito_upd, msg = db.actualizar_producto("5", "Prod1-mod", "Limpieza", 10, 2.0)
     assert exito_upd
     productos = db.obtener_productos()
     p5 = [p for p in productos if p[0] == 5][0]
@@ -68,7 +77,7 @@ def test_eliminar_producto_existente():
     
     exito, msg = db.eliminar_producto("50")
     assert exito
-    assert "eliminado con éxito" in msg
+    assert "eliminado con éxito" in msg.lower()
     
     productos = db.obtener_productos()
     assert not any(p[0] == 50 for p in productos)
@@ -113,37 +122,51 @@ def test_obtener_productos_vacio():
 def test_id_none_autoincrement():
     """Test that None ID is treated as blank and auto-increments"""
     db = BaseDatos(":memory:")
-    exito, mensaje = db.registrar_producto(None, "ProdNone", "Alimentos", 1, 1.0)
+    exito, mensaje, nuevo_id = db.registrar_producto(None, "ProdNone", "Alimentos", 1, 1.0)
     assert exito
     productos = db.obtener_productos()
     assert len(productos) == 1
     assert productos[0][0] == 1
+    assert nuevo_id == 1
 
 
 def test_id_con_ceros_delante_normaliza():
     """Test that IDs with leading zeros are normalized (02 -> 2)"""
     db = BaseDatos(":memory:")
-    exito, _ = db.registrar_producto("02", "Prod1", "Alimentos", 1, 1.0)
+    exito, _, nuevo_id = db.registrar_producto("02", "Prod1", "Alimentos", 1, 1.0)
     assert exito
     
     productos = db.obtener_productos()
     assert len(productos) == 1
     assert productos[0][0] == 2
+    assert nuevo_id == 2
 
 
 def test_ids_duplicados_con_ceros_actualiza():
-    """Test that 2, 02, 0002 are treated as the same ID"""
+    """Test that 2, 02, 0002 are treated as the same ID (register rejected; update used)"""
     db = BaseDatos(":memory:")
     
-    exito1, _ = db.registrar_producto("2", "Prod1", "Alimentos", 1, 1.0)
+    # first insert with "2"
+    exito1, _, nuevo_id1 = db.registrar_producto("2", "Prod1", "Alimentos", 1, 1.0)
     assert exito1
-    
-    exito2, msg2 = db.registrar_producto("02", "Prod2", "Bebidas", 2, 2.0)
-    assert exito2
-    
-    exito3, msg3 = db.registrar_producto("0002", "Prod3", "Limpieza", 3, 3.0)
-    assert exito3
-    
+
+    # attempting to register "02" should be rejected because ID normalized to 2 already exists
+    exito2, msg2, nid2 = db.registrar_producto("02", "Prod2", "Bebidas", 2, 2.0)
+    assert not exito2
+    assert "ya existe" in msg2.lower() or "actualizar" in msg2.lower()
+
+    # perform update using actualizar_producto (accepts "02" which normalizes to 2)
+    exito_upd, msg_upd = db.actualizar_producto("02", "Prod2", "Bebidas", 2, 2.0)
+    assert exito_upd
+
+    # attempting to register "0002" should also be rejected
+    exito3, msg3, nid3 = db.registrar_producto("0002", "Prod3", "Limpieza", 3, 3.0)
+    assert not exito3
+
+    # update to Prod3 using actualizar_producto
+    exito_upd2, msg_upd2 = db.actualizar_producto("0002", "Prod3", "Limpieza", 3, 3.0)
+    assert exito_upd2
+
     productos = db.obtener_productos()
     assert len(productos) == 1
     assert productos[0][0] == 2
@@ -154,6 +177,6 @@ def test_ids_duplicados_con_ceros_actualiza():
 def test_id_alfanumerico_rechaza():
     """Test that alphanumeric IDs are rejected"""
     db = BaseDatos(":memory:")
-    exito, msg = db.registrar_producto("ABC02", "ProdAlfa", "Alimentos", 1, 1.0)
+    exito, msg, _ = db.registrar_producto("ABC02", "ProdAlfa", "Alimentos", 1, 1.0)
     assert not exito
     assert "entero" in msg.lower()

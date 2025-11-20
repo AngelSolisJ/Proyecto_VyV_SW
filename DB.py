@@ -46,32 +46,31 @@ class BaseDatos:
         self.conn.commit()
 
     def _gestionar_categoria(self, nombre_categoria):
-        """
-        Método privado auxiliar:
-        Busca el ID de una categoría. Si no existe, la crea.
-        Retorna el ID numérico de la categoría.
-        """
         nombre_limpio = nombre_categoria.strip()
         
-        # Buscamos si ya existe
         self.cursor.execute("SELECT id FROM categoria WHERE nombre = ?", (nombre_limpio,))
         resultado = self.cursor.fetchone()
         
         if resultado:
-            return resultado[0] # Retorna el ID existente
+            return resultado[0]
         else:
-            # Si no existe, la creamos
             self.cursor.execute("INSERT INTO categoria (nombre) VALUES (?)", (nombre_limpio,))
             self.conn.commit()
-            return self.cursor.lastrowid # Retorna el nuevo ID
+            return self.cursor.lastrowid
 
     def registrar_producto(self, id_p, nombre, categoria_texto, cantidad, precio):
+        """
+        Registra un producto. Devuelve una tupla (exito:bool, mensaje:str, nuevo_id:int|None).
+        - Si no se proporciona ID se inserta con autoincrement y devuelve el nuevo_id.
+        - Si se proporciona un ID:
+            - Si el ID ya existe, la función RECHAZA la inserción y devuelve (False, mensaje, None).
+            - Si el ID no existe, inserta con ese ID y devuelve (True, mensaje, id_int).
+        """
         try:
-            # Primero obtenemos el ID de la categoría (el usuario manda texto, nosotros guardamos ID)
             cat_id = self._gestionar_categoria(categoria_texto)
 
             if not id_p or str(id_p).strip() == "":
-                # Registro nuevo con ID automático
+                # Inserción con autoincrement
                 self.cursor.execute("""
                     INSERT INTO producto (nombre, categoria_id, cantidad, precio) 
                     VALUES (?, ?, ?, ?)
@@ -79,41 +78,71 @@ class BaseDatos:
                 
                 self.conn.commit()
                 nuevo_id = self.cursor.lastrowid
-                return True, f"Producto registrado con éxito con ID {nuevo_id}."
+                return True, f"Producto registrado con éxito con ID {nuevo_id}.", nuevo_id
             
-            # Lógica para ID personalizado
+            # Si se proporcionó ID, validar
             try:
                 id_int = int(id_p)
             except ValueError:
-                return False, "Error: El ID debe ser un número entero."
+                return False, "Error: El ID debe ser un número entero.", None
             
+            # Si el ID ya existe, NO insertar ni actualizar desde aquí: devolver error y pedir usar Actualizar
             existing = self.cursor.execute("SELECT id FROM producto WHERE id=?", (id_int,)).fetchone()
             if existing:
-                # Si existe, actualizamos
-                return self.actualizar_producto(id_int, nombre, categoria_texto, cantidad, precio)
+                return False, f"Error: El ID {id_int} ya existe. Use 'Actualizar' para modificar el producto.", None
 
-            # Insertar con ID específico manual
+            # Insertar con ID específico (si no existe)
             self.cursor.execute("""
                 INSERT INTO producto (id, nombre, categoria_id, cantidad, precio) 
                 VALUES (?, ?, ?, ?, ?)
             """, (id_int, nombre, cat_id, cantidad, precio))
             
             self.conn.commit()
-            return True, "Producto registrado con éxito."
+            return True, f"Producto registrado con éxito con ID {id_int}.", id_int
             
         except sqlite3.Error as e:
-            return False, f"Error DB al registrar: {e}"
+            return False, f"Error DB al registrar: {e}", None
     
-    def obtener_productos(self):
-        # Hacemos un JOIN para traer el NOMBRE de la categoría, no el número
-        query = """
-            SELECT p.id, p.nombre, c.nombre, p.cantidad, p.precio 
-            FROM producto p
-            JOIN categoria c ON p.categoria_id = c.id
-            ORDER BY p.id
+    def obtener_productos(self, filtro=None):
         """
-        self.cursor.execute(query)
-        return self.cursor.fetchall()
+        Devuelve productos. Si filtro es None o vacío devuelve todos.
+        Si filtro es numérico busca por ID exacto. Si no, busca por nombre parcial (LIKE, case-insensitive).
+        """
+        if filtro is None or str(filtro).strip() == "":
+            query = """
+                SELECT p.id, p.nombre, c.nombre, p.cantidad, p.precio 
+                FROM producto p
+                JOIN categoria c ON p.categoria_id = c.id
+                ORDER BY p.id
+            """
+            self.cursor.execute(query)
+            return self.cursor.fetchall()
+        else:
+            f = str(filtro).strip()
+            # intentar buscar por ID exacto
+            try:
+                id_int = int(f)
+                query = """
+                    SELECT p.id, p.nombre, c.nombre, p.cantidad, p.precio
+                    FROM producto p
+                    JOIN categoria c ON p.categoria_id = c.id
+                    WHERE p.id = ?
+                    ORDER BY p.id
+                """
+                self.cursor.execute(query, (id_int,))
+                return self.cursor.fetchall()
+            except ValueError:
+                # búsqueda por nombre parcial (LIKE)
+                like = f"%{f}%"
+                query = """
+                    SELECT p.id, p.nombre, c.nombre, p.cantidad, p.precio
+                    FROM producto p
+                    JOIN categoria c ON p.categoria_id = c.id
+                    WHERE LOWER(p.nombre) LIKE LOWER(?)
+                    ORDER BY p.id
+                """
+                self.cursor.execute(query, (like,))
+                return self.cursor.fetchall()
 
     def actualizar_producto(self, id_p, nombre, categoria_texto, cantidad, precio):
         try:
@@ -122,7 +151,6 @@ class BaseDatos:
             except ValueError:
                 return False, "Error: El ID debe ser un número entero."
             
-            # Obtenemos el ID de la categoría nuevamente
             cat_id = self._gestionar_categoria(categoria_texto)
             
             self.cursor.execute("""
@@ -205,4 +233,4 @@ class BaseDatos:
         try:
             self.conn.close()
         except Exception:
-            pass
+            pass    

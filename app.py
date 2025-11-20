@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
@@ -26,49 +27,76 @@ class AplicacionUnificada:
     
     def mostrar_login(self):
         self.limpiar_contenedor()
-        self.master.geometry("400x300")
+        self.master.geometry("420x380")
         self.master.title("TiendApp | Inicio de Sesión")
         
-        main_frame = ttk.Frame(self.contenedor, padding="40 40 40 40")
+        main_frame = ttk.Frame(self.contenedor, padding="20 20 20 20")
         main_frame.pack(expand=True, fill='both')
         
         titulo = ttk.Label(main_frame, text="Sistema de Inventario", 
                           font=('Arial', 16, 'bold'))
-        titulo.pack(pady=(0, 30))
+        titulo.pack(pady=(0, 20))
         
         form_frame = ttk.Frame(main_frame)
-        form_frame.pack(pady=10)
+        form_frame.pack(pady=5)
         
         ttk.Label(form_frame, text="Usuario:", font=('Arial', 10)).grid(
-            row=0, column=0, sticky='w', padx=5, pady=10
+            row=0, column=0, sticky='w', padx=5, pady=8
         )
-        self.usuario_entry = ttk.Entry(form_frame, width=25, font=('Arial', 10))
-        self.usuario_entry.grid(row=0, column=1, padx=5, pady=10)
+        self.usuario_entry = ttk.Entry(form_frame, width=30, font=('Arial', 10))
+        self.usuario_entry.grid(row=0, column=1, padx=5, pady=8)
         self.usuario_entry.focus()
         
         ttk.Label(form_frame, text="Contraseña:", font=('Arial', 10)).grid(
-            row=1, column=0, sticky='w', padx=5, pady=10
+            row=1, column=0, sticky='w', padx=5, pady=8
         )
-        self.contraseña_entry = ttk.Entry(form_frame, width=25, show='*', font=('Arial', 10))
-        self.contraseña_entry.grid(row=1, column=1, padx=5, pady=10)
+        self.contraseña_entry = ttk.Entry(form_frame, width=30, show='*', font=('Arial', 10))
+        self.contraseña_entry.grid(row=1, column=1, padx=5, pady=8)
         
+        # Enter desde cualquiera de los campos
+        self.usuario_entry.bind('<Return>', lambda e: self.validar_login())
         self.contraseña_entry.bind('<Return>', lambda e: self.validar_login())
         
+        # Mostrar/ocultar contraseña
+        self.show_pwd_var = tk.BooleanVar(value=False)
+        def toggle_pwd():
+            self.contraseña_entry.config(show='' if self.show_pwd_var.get() else '*')
+        chk = ttk.Checkbutton(form_frame, text="Mostrar contraseña", variable=self.show_pwd_var, command=toggle_pwd)
+        chk.grid(row=2, column=1, sticky='w', padx=5, pady=(0,10))
+        
+        # Botones: Entrar verde, Salir rojo (usamos tk.Button para controlar colores)
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(pady=20)
+        btn_frame.pack(pady=10)
         
-        btn_ingresar = tk.Button(btn_frame, text="Ingresar", 
-                                command=self.validar_login,
-                                bg='#4CAF50', fg='white',
-                                font=('Arial', 10, 'bold'),
-                                width=12, relief='raised', bd=2)
-        btn_ingresar.pack(side='left', padx=5)
+        btn_entrar = tk.Button(
+            btn_frame,
+            text="Entrar",
+            command=self.validar_login,
+            bg='#4CAF50',        # verde
+            activebackground='#43A047',
+            fg='white',
+            activeforeground='white',
+            font=('Arial', 10, 'bold'),
+            width=12,
+            relief='raised',
+            bd=2
+        )
+        btn_entrar.pack(side='left', padx=10)
         
-        btn_salir = tk.Button(btn_frame, text="Salir", 
-                             command=self.master.quit,
-                             font=('Arial', 10),
-                             width=12, relief='raised', bd=2)
-        btn_salir.pack(side='left', padx=5)
+        btn_salir = tk.Button(
+            btn_frame,
+            text="Salir",
+            command=self.master.quit,
+            bg='#F44336',        # rojo
+            activebackground='#D32F2F',
+            fg='white',
+            activeforeground='white',
+            font=('Arial', 10, 'bold'),
+            width=12,
+            relief='raised',
+            bd=2
+        )
+        btn_salir.pack(side='left', padx=10)
     
     def validar_login(self):
         usuario = self.usuario_entry.get().strip()
@@ -85,10 +113,15 @@ class AplicacionUnificada:
             self.es_admin_actual = es_admin
             self.mostrar_inventario()
         else:
-            messagebox.showerror("Error de Autenticación", 
-                               "Usuario o contraseña incorrectos.")
-            self.contraseña_entry.delete(0, tk.END)
-            self.usuario_entry.focus()
+            messagebox.showerror("Error de Autenticación", "Usuario o contraseña incorrectos.")
+            try:
+                self.contraseña_entry.delete(0, tk.END)
+            except Exception:
+                pass
+            try:
+                self.usuario_entry.focus()
+            except Exception:
+                pass
     
     def mostrar_inventario(self):
         self.limpiar_contenedor()
@@ -99,12 +132,14 @@ class AplicacionUnificada:
             titulo += " (Administrador)"
         self.master.title(titulo)
         
+        # variables del formulario
         self.id_var = tk.StringVar()
         self.nombre_var = tk.StringVar()
         self.categoria_var = tk.StringVar(value="Alimentos")
         self.cantidad_var = tk.StringVar()
         self.precio_var = tk.StringVar()
         
+        # ---------- Formulario ----------
         input_frame = ttk.Frame(self.contenedor, padding="15 15 15 15")
         input_frame.pack(fill='x', padx=10, pady=10)
         input_frame.columnconfigure(1, weight=1)
@@ -132,11 +167,13 @@ class AplicacionUnificada:
                     row=row_num, column=1, padx=5, pady=5, sticky='ew'
                 )
         
+        # ---------- Botones principales ----------
         button_frame = ttk.Frame(self.contenedor, padding="10 10 10 10")
         button_frame.pack(fill='x', padx=10, pady=5)
         
+        # Registrar / Actualizar / Eliminar / Consultar / Usuarios / Salir
         if self.es_admin_actual:
-            button_frame.columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+            button_frame.columnconfigure((0,1,2,3,4,5), weight=1)
             ttk.Button(button_frame, text="➕ Registrar", command=self.registrar, style='Accent.TButton').grid(row=0, column=0, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="✏️ Actualizar", command=self.actualizar).grid(row=0, column=1, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="🗑️ Eliminar", command=self.eliminar).grid(row=0, column=2, padx=5, pady=5, sticky='ew')
@@ -144,13 +181,14 @@ class AplicacionUnificada:
             ttk.Button(button_frame, text="👥 Usuarios", command=self.mostrar_usuarios, style='Accent.TButton').grid(row=0, column=4, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="🚪 Salir", command=self.cerrar_sesion).grid(row=0, column=5, padx=5, pady=5, sticky='ew')
         else:
-            button_frame.columnconfigure((0, 1, 2, 3, 4), weight=1)
+            button_frame.columnconfigure((0,1,2,3,4), weight=1)
             ttk.Button(button_frame, text="➕ Registrar", command=self.registrar, style='Accent.TButton').grid(row=0, column=0, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="✏️ Actualizar", command=self.actualizar).grid(row=0, column=1, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="🗑️ Eliminar", command=self.eliminar).grid(row=0, column=2, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="📋 Consultar", command=self.consultar).grid(row=0, column=3, padx=5, pady=5, sticky='ew')
             ttk.Button(button_frame, text="🚪 Salir", command=self.cerrar_sesion).grid(row=0, column=4, padx=5, pady=5, sticky='ew')
         
+        # ---------- Tabla principal ----------
         table_frame = ttk.Frame(self.contenedor, padding="10 10 10 10")
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
         table_frame.columnconfigure(0, weight=1)
@@ -169,7 +207,34 @@ class AplicacionUnificada:
         self.lista_inventario.configure(yscrollcommand=scroll.set)
         scroll.grid(row=0, column=1, sticky='ns')
         
+        # cuando se selecciona una fila, rellenar el formulario
+        self.lista_inventario.bind('<<TreeviewSelect>>', self.on_tree_select)
+        
+        # cargar inicialmente todos los productos
         self.consultar()
+    
+    def on_tree_select(self, event):
+        seleccion = self.lista_inventario.selection()
+        if not seleccion:
+            return
+        valores = self.lista_inventario.item(seleccion[0])['values']
+        try:
+            self.id_var.set(valores[0])
+            self.nombre_var.set(valores[1])
+            self.categoria_var.set(valores[2])
+            self.cantidad_var.set(str(valores[3]))
+            self.precio_var.set(str(valores[4]))
+        except Exception:
+            pass
+    
+    def consultar(self):
+        """Consulta simple: borra la tabla y vuelve a poblarla con todos los productos de la BD."""
+        for item in self.lista_inventario.get_children():
+            self.lista_inventario.delete(item)
+        
+        productos = self.db.obtener_productos()  # sin filtro: devuelve todos
+        for producto in productos:
+            self.lista_inventario.insert('', tk.END, values=producto)
     
     def cerrar_sesion(self):
         self.usuario_actual = None
@@ -189,23 +254,21 @@ class AplicacionUnificada:
             messagebox.showerror("Error de Validación", mensaje)
             return
         
-        exito, mensaje = self.db.registrar_producto(id_p, nombre, categoria, int(cantidad), float(precio))
+        # Usamos la nueva firma: registrar_producto devuelve (exito, mensaje, nuevo_id)
+        exito, mensaje, nuevo_id = self.db.registrar_producto(id_p, nombre, categoria, int(cantidad), float(precio))
 
         if exito:
             messagebox.showinfo("Éxito", mensaje)
+            # Insertar sólo la fila nueva en la vista (evitamos recargar toda la tabla)
+            try:
+                self.lista_inventario.insert('', tk.END, values=(nuevo_id, nombre, categoria, int(cantidad), float(precio)))
+            except Exception:
+                # Si por alguna razón la vista no existe aún, recargar todo
+                self.consultar()
             self.limpiar_campos()
-            self.consultar()
         else:
+            # Si exito==False, se muestra el mensaje de error (p. ej. ID ya existe)
             messagebox.showerror("Error de Registro", mensaje)
-    
-    def consultar(self):
-        for item in self.lista_inventario.get_children():
-            self.lista_inventario.delete(item)
-        
-        productos = self.db.obtener_productos()
-        
-        for producto in productos:
-            self.lista_inventario.insert('', tk.END, values=producto)
     
     def actualizar(self):
         id_p = self.id_var.get()
