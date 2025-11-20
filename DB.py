@@ -9,7 +9,6 @@ class BaseDatos:
         self.crear_tablas()
     
     def crear_tablas(self):
-        # 1. Crear tabla de Categorías (Maestra)
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS categoria (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,8 +16,6 @@ class BaseDatos:
             )
         ''')
         
-        # 2. Crear tabla de Productos (Relacionada)
-        # Nota: Ahora usamos categoria_id en lugar de texto
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS producto (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,6 +26,23 @@ class BaseDatos:
                 FOREIGN KEY (categoria_id) REFERENCES categoria (id)
             )                        
         ''')
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuario (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre_usuario TEXT NOT NULL UNIQUE,
+                contraseña TEXT NOT NULL,
+                es_admin INTEGER NOT NULL DEFAULT 0
+            )
+        ''')
+        
+        self.cursor.execute("SELECT COUNT(*) FROM usuario WHERE nombre_usuario = 'admin'")
+        if self.cursor.fetchone()[0] == 0:
+            self.cursor.execute(
+                "INSERT INTO usuario (nombre_usuario, contraseña, es_admin) VALUES (?, ?, ?)",
+                ("admin", "1234", 1)
+            )
+        
         self.conn.commit()
 
     def _gestionar_categoria(self, nombre_categoria):
@@ -137,6 +151,55 @@ class BaseDatos:
             return True, "Producto eliminado con éxito."
         else:
             return False, "Error: No se encontró el producto para eliminar"
+    
+    def validar_usuario(self, nombre_usuario, contraseña):
+        self.cursor.execute(
+            "SELECT id, es_admin FROM usuario WHERE nombre_usuario = ? AND contraseña = ?",
+            (nombre_usuario, contraseña)
+        )
+        resultado = self.cursor.fetchone()
+        if resultado:
+            return True, resultado[0], bool(resultado[1])
+        return False, None, False
+    
+    def registrar_usuario(self, nombre_usuario, contraseña, es_admin=0):
+        try:
+            self.cursor.execute(
+                "INSERT INTO usuario (nombre_usuario, contraseña, es_admin) VALUES (?, ?, ?)",
+                (nombre_usuario, contraseña, es_admin)
+            )
+            self.conn.commit()
+            return True, "Usuario registrado con éxito."
+        except sqlite3.IntegrityError:
+            return False, "Error: El nombre de usuario ya existe."
+        except sqlite3.Error as e:
+            return False, f"Error DB: {e}"
+    
+    def obtener_usuarios(self):
+        self.cursor.execute("SELECT id, nombre_usuario, es_admin FROM usuario ORDER BY id")
+        return self.cursor.fetchall()
+    
+    def eliminar_usuario(self, id_usuario):
+        try:
+            id_int = int(id_usuario)
+            self.cursor.execute("SELECT nombre_usuario FROM usuario WHERE id = ?", (id_int,))
+            usuario = self.cursor.fetchone()
+            
+            if usuario and usuario[0] == "admin":
+                return False, "Error: No se puede eliminar el usuario admin."
+            
+            self.cursor.execute("DELETE FROM usuario WHERE id=?", (id_int,))
+            filas_afectadas = self.cursor.rowcount
+            self.conn.commit()
+            
+            if filas_afectadas > 0:
+                return True, "Usuario eliminado con éxito."
+            else:
+                return False, "Error: No se encontró el usuario."
+        except ValueError:
+            return False, "Error: El ID debe ser un número entero."
+        except sqlite3.Error as e:
+            return False, f"Error DB: {e}"
     
     def __del__(self):
         try:
