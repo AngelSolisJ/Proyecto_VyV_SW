@@ -2,7 +2,7 @@ import sqlite3
 
 class BaseDatos:
     def __init__(self, db_name="inventario.db"):
-        self.conn = sqlite3.connect(db_name)
+        self.conn = sqlite3.connect(db_name, timeout=10, check_same_thread=False)
         # Activar soporte para llaves foráneas (Foreign Keys)
         self.conn.execute("PRAGMA foreign_keys = 1")
         self.cursor = self.conn.cursor()
@@ -58,10 +58,27 @@ class BaseDatos:
             self.conn.commit()
             return self.cursor.lastrowid
 
+    def _get_first_free_id(self, table='producto'):
+        """
+        Devuelve el menor entero positivo >=1 que NO está presente en la columna id de la tabla.
+        """
+        self.cursor.execute(f"SELECT id FROM {table} ORDER BY id")
+        rows = self.cursor.fetchall()
+        ids = [r[0] for r in rows]
+        next_id = 1
+        for v in ids:
+            if v == next_id:
+                next_id += 1
+            elif v > next_id:
+                break
+        return next_id
+
     def registrar_producto(self, id_p, nombre, categoria_texto, cantidad, precio):
         """
         Registra un producto. Devuelve una tupla (exito:bool, mensaje:str, nuevo_id:int|None).
-        - Si no se proporciona ID se inserta con autoincrement y devuelve el nuevo_id.
+
+        - Si no se proporciona ID (id_p vacío o None) -> calcular el primer ID libre y 
+          hacer INSERT especificando ese ID (reusa IDs eliminados).
         - Si se proporciona un ID:
             - Si el ID ya existe, la función RECHAZA la inserción y devuelve (False, mensaje, None).
             - Si el ID no existe, inserta con ese ID y devuelve (True, mensaje, id_int).
@@ -69,20 +86,46 @@ class BaseDatos:
         try:
             cat_id = self._gestionar_categoria(categoria_texto)
 
-            if not id_p or str(id_p).strip() == "":
-                # Inserción con autoincrement
-                self.cursor.execute("""
-                    INSERT INTO producto (nombre, categoria_id, cantidad, precio) 
-                    VALUES (?, ?, ?, ?)
-                """, (nombre, cat_id, cantidad, precio))
-                
-                self.conn.commit()
-                nuevo_id = self.cursor.lastrowid
-                return True, f"Producto registrado con éxito con ID {nuevo_id}.", nuevo_id
-            
-            # Si se proporcionó ID, validar
+            # Normalizar id_p vacío / None
+            if id_p is None or str(id_p).strip() == "":
+                # Insertar con el primer ID libre (reusar IDs eliminados).
+                try:
+                    # Reservar la DB para evitar carrera: BEGIN IMMEDIATE bloquea escrituras concurrentes.
+                    # Si hay error (p. ej. otro proceso ya tiene bloqueo), seguirá y SQLite lanzará excepción en el INSERT si hay conflicto.
+                    self.conn.execute("BEGIN IMMEDIATE")
+                except sqlite3.OperationalError:
+                    # Si no se puede iniciar la transacción inmediata, se continúa y confiamos en el INSERT/commit para fallar en caso de conflicto.
+                    pass
+
+                try:
+                    nuevo_id = self._get_first_free_id('producto')
+                    self.cursor.execute("""
+                        INSERT INTO producto (id, nombre, categoria_id, cantidad, precio)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (nuevo_id, nombre, cat_id, cantidad, precio))
+                    self.conn.commit()
+                    return True, f"Producto registrado con éxito con ID {nuevo_id}.", nuevo_id
+                except sqlite3.IntegrityError as e:
+                    # En caso de conflicto (otro proceso insertó el mismo ID entre la selección e INSERT),
+                    # hacer rollback y reportar error (o podríamos reintentar varias veces).
+                    try:
+                        self.conn.rollback()
+                    except Exception:
+                        pass
+                    return False, f"Error DB: conflicto al asignar ID. Intente nuevamente. ({e})", None
+                except sqlite3.Error as e:
+                    try:
+                        self.conn.rollback()
+                    except Exception:
+                        pass
+                    return False, f"Error DB al registrar: {e}", None
+
+            # Si se proporcionó ID, validar y usarlo si está libre
             try:
-                id_int = int(id_p)
+                id_int = int(str(id_p).lstrip("0") or "0")
+                if id_int == 0:
+                    # si el usuario ingresó algo como "0" o "00", normalizamos a 0 y rechazamos (IDs empiezan en 1)
+                    return False, "Error: El ID debe ser un entero positivo mayor o igual a 1.", None
             except ValueError:
                 return False, "Error: El ID debe ser un número entero.", None
             
@@ -92,15 +135,25 @@ class BaseDatos:
                 return False, f"Error: El ID {id_int} ya existe. Use 'Actualizar' para modificar el producto.", None
 
             # Insertar con ID específico (si no existe)
-            self.cursor.execute("""
-                INSERT INTO producto (id, nombre, categoria_id, cantidad, precio) 
-                VALUES (?, ?, ?, ?, ?)
-            """, (id_int, nombre, cat_id, cantidad, precio))
-            
-            self.conn.commit()
-            return True, f"Producto registrado con éxito con ID {id_int}.", id_int
+            try:
+                self.cursor.execute("""
+                    INSERT INTO producto (id, nombre, categoria_id, cantidad, precio) 
+                    VALUES (?, ?, ?, ?, ?)
+                """, (id_int, nombre, cat_id, cantidad, precio))
+                self.conn.commit()
+                return True, f"Producto registrado con éxito con ID {id_int}.", id_int
+            except sqlite3.IntegrityError as e:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                return False, f"Error DB al registrar con ID especificado: {e}", None
             
         except sqlite3.Error as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
             return False, f"Error DB al registrar: {e}", None
     
     def obtener_productos(self, filtro=None):
@@ -147,10 +200,13 @@ class BaseDatos:
     def actualizar_producto(self, id_p, nombre, categoria_texto, cantidad, precio):
         try:
             try:
-                id_int = int(id_p)
+                id_int = int(str(id_p).lstrip("0") or "0")
             except ValueError:
                 return False, "Error: El ID debe ser un número entero."
             
+            if id_int == 0:
+                return False, "Error: El ID debe ser un entero positivo mayor o igual a 1."
+
             cat_id = self._gestionar_categoria(categoria_texto)
             
             self.cursor.execute("""
@@ -164,11 +220,17 @@ class BaseDatos:
                 return False, "Error: Producto no encontrado para actualizar."
             return True, "Producto actualizado con éxito."
         except sqlite3.Error as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
             return False, f"Error DB: {e}"
 
     def eliminar_producto(self, id_p):
         try:
-            id_int = int(id_p)
+            id_int = int(str(id_p).lstrip("0") or "0")
+            if id_int == 0:
+                return False, "Error: El ID debe ser un número entero positivo."
         except ValueError:
             return False, "Error: El ID debe ser un número entero."
         
@@ -201,6 +263,10 @@ class BaseDatos:
         except sqlite3.IntegrityError:
             return False, "Error: El nombre de usuario ya existe."
         except sqlite3.Error as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
             return False, f"Error DB: {e}"
     
     def obtener_usuarios(self):
@@ -227,6 +293,10 @@ class BaseDatos:
         except ValueError:
             return False, "Error: El ID debe ser un número entero."
         except sqlite3.Error as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
             return False, f"Error DB: {e}"
     
     def __del__(self):
